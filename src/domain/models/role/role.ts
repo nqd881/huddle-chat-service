@@ -1,4 +1,4 @@
-import { Prop, ValueObjectBase } from 'ddd-node';
+import { EntityBase, Id, Prop, ValueObjectBase } from 'ddd-node';
 import { Permission } from '../permission';
 
 export interface RoleProps {

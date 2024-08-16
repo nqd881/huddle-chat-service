@@ -1,4 +1,4 @@
-import { EventBase, Id } from 'ddd-node';
+import { Event, EventBase, Id } from 'ddd-node';
 import { Role } from '../../role';
 
 export interface RolesAssignedToParticipantProps {
@@ -7,4 +7,5 @@ export interface RolesAssignedToParticipantProps {
   assignedRoles: Role[];
 }
 
+@Event('ROLES_ASSIGNED_TO_PARTICIPANT')
 export class RolesAssignedToParticipant extends EventBase<RolesAssignedToParticipantProps> {}

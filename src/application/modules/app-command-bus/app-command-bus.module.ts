@@ -4,9 +4,10 @@ import {
 } from 'application/_base/app-command';
 import { Type } from 'utils/types/type';
 import { ContainerModuleX } from '../container-module-x';
-import { AppCommandBusToken, AppCommandHandlerToken } from './token';
+import { AppCommandHandlerIdentifier } from './identifiers';
 
 export interface AppCommandBusModuleOptions {
+  commandBusIdentifier: string | symbol;
   commandHandlers: Type<IAppCommandHandler>[];
 }
 
@@ -28,27 +29,34 @@ export class AppCommandBusModule extends ContainerModuleX {
 
   bindCommandHandlers() {
     this.onActivation<IAppCommandHandler>(
-      AppCommandHandlerToken,
+      AppCommandHandlerIdentifier,
       (context, instance) => {
         this.commandBus.registerHandler(instance);
-
         return instance;
       },
     );
 
     this.onDeactivation<IAppCommandHandler>(
-      AppCommandHandlerToken,
+      AppCommandHandlerIdentifier,
       (instance) => {
         this.commandBus.deregisterHandler(instance.commandType());
       },
     );
 
     this.commandHandlers().forEach((commandHandler) => {
-      this.bind(AppCommandHandlerToken).to(commandHandler);
+      this.bind(AppCommandHandlerIdentifier).to(commandHandler);
     });
   }
 
   bindCommandBus() {
-    this.bind(AppCommandBusToken).toConstantValue(this.commandBus);
+    const { commandBusIdentifier } = this.options;
+
+    this.onActivation(commandBusIdentifier, (context, instance) => {
+      context.container.getAll(AppCommandHandlerIdentifier);
+
+      return instance;
+    });
+
+    this.bind(commandBusIdentifier).toConstantValue(this.commandBus);
   }
 }

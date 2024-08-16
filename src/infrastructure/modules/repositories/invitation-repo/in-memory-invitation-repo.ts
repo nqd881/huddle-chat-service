@@ -1,9 +1,9 @@
-import { ChatJoinInvitation } from 'domain/models/chat-join-invitation';
+import { Invitation } from 'domain/models/invitation';
 import { InMemoryRepo } from '../base/in-memory-repo';
-import { IChatJoinInvitationRepo } from 'domain/repositories/chat-join-invitation.repo';
+import { IInvitationRepo } from 'domain/repositories/chat-join-invitation.repo';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class InMemoryInvitationRepo
-  extends InMemoryRepo<ChatJoinInvitation>
-  implements IChatJoinInvitationRepo {}
+  extends InMemoryRepo<Invitation>
+  implements IInvitationRepo {}

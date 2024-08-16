@@ -1,20 +1,21 @@
-import { inject, injectable } from 'inversify';
 import { IAppCommandHandler } from 'application/_base/app-command';
+import {
+  RepoRegistryIdentifier,
+  WorkflowHostIdentifier,
+} from 'application/app.identifiers';
+import { IRepoRegistry } from 'application/abstractions';
 import { Type } from 'application/utils/type';
+import { inject, injectable } from 'inversify';
 import { NewPrivateChatCommand } from './command';
-import { ProcessStoreToken, RepoRegistryToken } from 'application/app.token';
-import { IRepoRegistry } from 'application/output-ports/repo-registry';
-import { InitiateChatProcess } from 'application/processes/initiate-chat.process';
-import { v4 } from 'uuid';
-import { IProcessStore, ProcessStatus } from 'application/process';
+import { IWorkflowHost } from 'wfes';
 
 @injectable()
 export class NewPrivateChatHandler
   implements IAppCommandHandler<NewPrivateChatCommand>
 {
   constructor(
-    @inject(RepoRegistryToken) private repoRegistry: IRepoRegistry,
-    @inject(ProcessStoreToken) private processStore: IProcessStore,
+    @inject(RepoRegistryIdentifier) private repoRegistry: IRepoRegistry,
+    @inject(WorkflowHostIdentifier) private workflowHost: IWorkflowHost,
   ) {}
 
   commandType(): Type<NewPrivateChatCommand> {
@@ -24,42 +25,21 @@ export class NewPrivateChatHandler
   async handleCommand(command: NewPrivateChatCommand): Promise<void> {
     const { userId } = command;
 
-    if (!userId) throw new Error();
+    if (!userId) throw new Error("User's id must be provided");
 
     const { targetUserId } = command.payload;
 
     const user = await this.repoRegistry.userRepo().userOfId(userId);
 
-    if (!user) throw new Error();
+    if (!user) throw new Error('User not found');
 
-    const process = new InitiateChatProcess({
-      id: v4(),
-      input: {
-        initiatorId: userId,
-        inviteeUserIds: [targetUserId],
+    const workflowId = await this.workflowHost.startWorkflow(
+      'initiate-private-chat',
+      1,
+      {
+        userId: user.id(),
+        invitedUserId: targetUserId,
       },
-      state: {},
-      status: ProcessStatus.Running,
-    });
-
-    await this.processStore.store(process);
-
-    // const privateChat = user.createPrivateChat();
-
-    // privateChat.addPendingParticipant(
-    //   userId,
-    //   [PrivateChatParticipantRole],
-    //   1000,
-    // );
-
-    // privateChat.
-
-    // privateChat.addPendingParticipant(
-    //   targetUserId,
-    //   [PrivateChatParticipantRole],
-    //   1000,
-    // );
-
-    // await this.repoRegistry.chatRepo().save(privateChat);
+    );
   }
 }

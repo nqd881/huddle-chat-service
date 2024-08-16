@@ -3,6 +3,7 @@ import { Chat, NewChatDetails } from '../chat';
 import { UserStatus } from './user-status';
 import { ChatType } from '../chat/chat-type';
 import { UserCreated } from './events/user-created';
+import { PrivateChatMemberRole } from '../role/default-roles';
 
 export interface UserProps {
   status: UserStatus;
@@ -29,7 +30,7 @@ export class User extends StateAggregateBase<UserProps> {
       description: '',
       type: ChatType.Private,
       participantLimit: 2,
-      allowedRoles: [],
+      allowedRoles: [PrivateChatMemberRole],
     });
 
     const privateChat = Chat.create(newChatDetails);

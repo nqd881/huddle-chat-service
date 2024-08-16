@@ -1,4 +1,4 @@
-import { EventBase, Id } from 'ddd-node';
+import { Event, EventBase, Id } from 'ddd-node';
 import { Nickname } from '../nickname';
 
 export interface ParticipantNicknameChangedProps {
@@ -7,4 +7,5 @@ export interface ParticipantNicknameChangedProps {
   nickname: Nickname;
 }
 
+@Event('PARTICIPANT_NICKNAME_CHANGED')
 export class ParticipantNicknameChanged extends EventBase<ParticipantNicknameChangedProps> {}

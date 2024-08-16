@@ -1,4 +1,4 @@
-import { EventBase, Id } from 'ddd-node';
+import { Event, EventBase, Id } from 'ddd-node';
 import { Role } from '../../role';
 
 export interface RolesRevokedFromParticipantProps {
@@ -7,4 +7,5 @@ export interface RolesRevokedFromParticipantProps {
   revokedRoles: Role[];
 }
 
+@Event('ROLES_REVOKED_TO_PARTICIPANT')
 export class RolesRevokedFromParticipant extends EventBase<RolesRevokedFromParticipantProps> {}

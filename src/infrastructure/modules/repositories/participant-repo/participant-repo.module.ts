@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
-import { PARTICIPANT_REPO } from './token';
+import { EventStoreModule } from 'infrastructure/modules/event-store';
 import { InMemoryParticipantRepo } from './in-memory-participant-repo';
+import { PARTICIPANT_REPO } from './token';
 
 @Module({
+  imports: [EventStoreModule],
   providers: [
     {
       provide: PARTICIPANT_REPO,

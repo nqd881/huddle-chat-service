@@ -1,14 +1,15 @@
 import { Id, Prop, StateAggregateBase, StateAggregateBuilder } from 'ddd-node';
+import { isNil } from 'lodash';
 import { Participant } from '../participant';
-import { ParticipantAddition } from '../participant/participant-addition';
 import { Role } from '../role';
 import { ChatType } from './chat-type';
-import { ChatCreated } from './events';
+import {
+  ChatCreated,
+  PendingParticipantAdded,
+  PendingParticipantConfirmed,
+} from './events';
 import { NewChatDetails } from './new-chat-details';
-import _ from 'lodash';
 import { PendingParticipant } from './sub-models/pending-participant';
-import { PendingParticipantAdded } from './events/pending-participant-added';
-import { PendingParticipantConfirmed } from './pending-participant-confirmed';
 
 export interface ChatProps {
   title: string;
@@ -85,7 +86,7 @@ export class Chat extends StateAggregateBase<ChatProps> {
   }
 
   hasParticipantLimit() {
-    return _.isNil(this.participantLimit);
+    return isNil(this.participantLimit);
   }
 
   canAddPendingParticipant() {
@@ -97,13 +98,7 @@ export class Chat extends StateAggregateBase<ChatProps> {
     );
   }
 
-  // getNonExpiredPendingParticipants() {
-  //   return this.pendingParticipants.filter(
-  //     (pendingParticipant) => !pendingParticipant.isExpired(),
-  //   );
-  // }
-
-  private getPendingParticipant(userId: Id) {
+  getPendingParticipant(userId: Id) {
     return this._props.pendingParticipants.find(
       (pendingParticipant) => pendingParticipant.userId === userId,
     );
@@ -144,6 +139,8 @@ export class Chat extends StateAggregateBase<ChatProps> {
       chatId: newPendingParticipant.chatId,
       userId: newPendingParticipant.userId,
     });
+
+    return newPendingParticipant;
   }
 
   confirmPendingParticipant(userId: Id) {
@@ -163,17 +160,10 @@ export class Chat extends StateAggregateBase<ChatProps> {
   newParticipant(userId: Id): Participant {
     const pendingParticipant = this.getPendingParticipant(userId);
 
-    if (!pendingParticipant) throw new Error();
+    if (!pendingParticipant) throw new Error('Pending participant not exist');
 
-    if (pendingParticipant.isExpired()) throw new Error();
-
-    // const addition = new ParticipantAddition({
-    //   chatId: this.id(),
-    //   userId,
-    //   roles: pendingParticipant.roles,
-    // });
-
-    // const participant = Participant.fromAddition(addition);
+    if (pendingParticipant.isExpired())
+      throw new Error('Pending participant is expired');
 
     const participant = Participant.create({
       chatId: this.id(),

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { IRepoRegistry } from 'application/output-ports/repo-registry';
+import { IRepoRegistry } from 'application/abstractions';
 import { IChatRepo, IParticipantRepo, IUserRepo } from 'domain/repositories';
-import { IChatJoinInvitationRepo } from 'domain/repositories/chat-join-invitation.repo';
+import { IInvitationRepo } from 'domain/repositories/chat-join-invitation.repo';
 import { USER_REPO } from '../repositories/user-repo';
 import { CHAT_REPO } from '../repositories/chat-repo';
 import { PARTICIPANT_REPO } from '../repositories/participant-repo';
@@ -13,7 +13,7 @@ export class RepoRegistry implements IRepoRegistry {
     @Inject(USER_REPO) private _userRepo: IUserRepo,
     @Inject(CHAT_REPO) private _chatRepo: IChatRepo,
     @Inject(PARTICIPANT_REPO) private _participantRepo: IParticipantRepo,
-    @Inject(INVITATION_REPO) private _invitationRepo: IChatJoinInvitationRepo,
+    @Inject(INVITATION_REPO) private _invitationRepo: IInvitationRepo,
   ) {}
 
   userRepo(): IUserRepo {
@@ -28,7 +28,7 @@ export class RepoRegistry implements IRepoRegistry {
     return this._participantRepo;
   }
 
-  invitationRepo(): IChatJoinInvitationRepo {
+  invitationRepo(): IInvitationRepo {
     return this._invitationRepo;
   }
 }

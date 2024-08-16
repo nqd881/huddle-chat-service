@@ -6,12 +6,12 @@ import {
 import { Type } from 'utils/types/type';
 import { ContainerModuleX } from '../container-module-x';
 import {
-  DomainEventSubscriberToken,
-  GlobalDomainEventSubscriberToken,
-} from './token';
+  SubscriberIdentifier,
+  GlobalSubscriberIdentifier,
+} from './identifiers';
 
 export interface DomainEventSubsrciberRegistryModuleOptions {
-  registryToken: string | symbol;
+  registryIdentifier: string | symbol;
   globalSubscribers?: Type<IGlobalEventSubscriber>[];
   subscribers?: Type<IEventSubscriber>[];
 }
@@ -30,10 +30,6 @@ export class DomainEventSubscriberRegistryModule extends ContainerModuleX {
     this.bindRegistry();
   }
 
-  private registryToken() {
-    return this.options.registryToken;
-  }
-
   private globalSubscribers() {
     return this.options.globalSubscribers ?? [];
   }
@@ -43,17 +39,17 @@ export class DomainEventSubscriberRegistryModule extends ContainerModuleX {
   }
 
   bindGlobalSubscribers() {
-    this.listenToRegisterGlobalEventSubscriber();
-    this.listenToDeregisterGlobalEventSubscriber();
+    this.listenToRegisterGlobalSubscriber();
+    this.listenToDeregisterGlobalSubscriber();
 
     this.globalSubscribers().forEach((globalSubscriber) => {
-      this.bind(GlobalDomainEventSubscriberToken).to(globalSubscriber);
+      this.bind(GlobalSubscriberIdentifier).to(globalSubscriber);
     });
   }
 
-  private listenToRegisterGlobalEventSubscriber() {
+  private listenToRegisterGlobalSubscriber() {
     this.onActivation<IGlobalEventSubscriber>(
-      GlobalDomainEventSubscriberToken,
+      GlobalSubscriberIdentifier,
       (context, instance) => {
         this.eventSubscriberRegistry.registerGlobalSubscriber(instance);
 
@@ -62,9 +58,9 @@ export class DomainEventSubscriberRegistryModule extends ContainerModuleX {
     );
   }
 
-  private listenToDeregisterGlobalEventSubscriber() {
+  private listenToDeregisterGlobalSubscriber() {
     this.onDeactivation<IGlobalEventSubscriber>(
-      GlobalDomainEventSubscriberToken,
+      GlobalSubscriberIdentifier,
       (instance) => {
         this.eventSubscriberRegistry.deregisterGlobalSubscriber(instance);
       },
@@ -76,13 +72,13 @@ export class DomainEventSubscriberRegistryModule extends ContainerModuleX {
     this.listenToDeregisterSubscriber();
 
     this.subscribers().forEach((subscriber) => {
-      this.bind(DomainEventSubscriberToken).to(subscriber);
+      this.bind(SubscriberIdentifier).to(subscriber);
     });
   }
 
   private listenToRegisterSubscriber() {
     this.onActivation<IEventSubscriber>(
-      DomainEventSubscriberToken,
+      SubscriberIdentifier,
       (context, instance) => {
         this.eventSubscriberRegistry.registerSubscriber(instance);
 
@@ -92,17 +88,21 @@ export class DomainEventSubscriberRegistryModule extends ContainerModuleX {
   }
 
   private listenToDeregisterSubscriber() {
-    this.onDeactivation<IEventSubscriber>(
-      DomainEventSubscriberToken,
-      (instance) => {
-        this.eventSubscriberRegistry.deregisterSubscriber(instance);
-      },
-    );
+    this.onDeactivation<IEventSubscriber>(SubscriberIdentifier, (instance) => {
+      this.eventSubscriberRegistry.deregisterSubscriber(instance);
+    });
   }
 
   bindRegistry() {
-    this.bind(this.registryToken()).toConstantValue(
-      this.eventSubscriberRegistry,
-    );
+    const { registryIdentifier } = this.options;
+
+    this.onActivation(registryIdentifier, (context, instance) => {
+      context.container.getAll(GlobalSubscriberIdentifier);
+      context.container.getAll(SubscriberIdentifier);
+
+      return instance;
+    });
+
+    this.bind(registryIdentifier).toConstantValue(this.eventSubscriberRegistry);
   }
 }

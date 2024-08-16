@@ -1,5 +1,4 @@
 import { IRepository } from 'ddd-node';
-import { ChatJoinInvitation } from '../models/chat-join-invitation';
+import { Invitation } from '../models/invitation';
 
-export interface IChatJoinInvitationRepo
-  extends IRepository<ChatJoinInvitation> {}
+export interface IInvitationRepo extends IRepository<Invitation> {}

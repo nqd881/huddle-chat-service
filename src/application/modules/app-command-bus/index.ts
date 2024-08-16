@@ -1,2 +1,2 @@
 export * from './app-command-bus.module';
-export * from './token';
+export * from './identifiers';

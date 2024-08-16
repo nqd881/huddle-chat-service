@@ -5,23 +5,28 @@ import {
   StateAggregateBase,
   StateAggregateBuilder,
 } from 'ddd-node';
-import { Permission } from '../permission';
+import { Invitation } from '../invitation';
+import {
+  AssignRolePermission,
+  ChangeNicknamePermission,
+  InviteUserPermission,
+  Permission,
+  RevokeRolePermission,
+} from '../permission';
 import { Restriction } from '../restriction';
 import { Role } from '../role';
 import {
-  ParticipantAdded,
   ParticipantCreated,
   ParticipantNicknameChanged,
   RolesAssignedToParticipant,
   RolesRevokedFromParticipant,
 } from './events';
+import { ParticipantActivated } from './events/participant-activated';
 import { Nickname } from './nickname';
-import { ParticipantAddition } from './participant-addition';
 import { ParticipantNicknameChange } from './participant-nickname-change';
 import { ParticipantRoleAssignment } from './participant-role-assignment';
 import { ParticipantRoleRevocation } from './participant-role-revocation';
 import { ParticipantStatus } from './participant-status';
-import { ParticipantActivated } from './events/participant-activated';
 
 export interface ParticipantProps {
   chatId: Id;
@@ -47,23 +52,6 @@ export class Participant extends StateAggregateBase<ParticipantProps> {
     return participant;
   }
 
-  // static fromAddition(addition: ParticipantAddition) {
-  //   const participant = new ParticipantBuilder(this)
-  //     .withProps({
-  //       chatId: addition.chatId,
-  //       userId: addition.userId,
-  //       roles: addition.roles,
-  //     })
-  //     .build();
-
-  //   participant.recordEvent(ParticipantAdded, {
-  //     chatId: participant.chatId,
-  //     userId: participant.userId,
-  //   });
-
-  //   return participant;
-  // }
-
   @Prop()
   declare chatId: Id;
 
@@ -87,7 +75,11 @@ export class Participant extends StateAggregateBase<ParticipantProps> {
 
     this._props.status = ParticipantStatus.Active;
 
-    this.recordEvent(ParticipantActivated, {});
+    this.recordEvent(ParticipantActivated, {
+      chatId: this.chatId,
+      userId: this.userId,
+      participantId: this.id(),
+    });
   }
 
   hasRole(role: Role) {
@@ -109,7 +101,23 @@ export class Participant extends StateAggregateBase<ParticipantProps> {
     );
   }
 
-  changeNickname(nicknameChange: ParticipantNicknameChange) {
+  changeNickname(participantId: Id, nickname: Nickname) {
+    const canChangeNickname = this.isEligibleForPermission(
+      ChangeNicknamePermission,
+    );
+
+    if (!canChangeNickname)
+      throw new Error('Cannot change nickname of participant');
+
+    return new ParticipantNicknameChange({
+      chatId: this.chatId,
+      initiatorId: this.id(),
+      targetId: participantId,
+      nickname,
+    });
+  }
+
+  applyNicknameChange(nicknameChange: ParticipantNicknameChange) {
     const { initiatorId, targetId, nickname } = nicknameChange;
 
     if (this.id() !== targetId)
@@ -126,7 +134,28 @@ export class Participant extends StateAggregateBase<ParticipantProps> {
     });
   }
 
-  assignRoles(roleAssignment: ParticipantRoleAssignment) {
+  changeSelfNickname(nickname: Nickname) {
+    const nicknameChange = this.changeNickname(this.id(), nickname);
+
+    this.applyNicknameChange(nicknameChange);
+  }
+
+  assignRoles(participantId: Id, roles: Role[]) {
+    const canAssignRole = this.isEligibleForPermission(AssignRolePermission);
+
+    if (!canAssignRole) throw new Error();
+
+    const assignedRoles = roles.filter((role) => this.hasRole(role));
+
+    return new ParticipantRoleAssignment({
+      chatId: this.chatId,
+      assignorId: this.id(),
+      targetId: participantId,
+      assignedRoles,
+    });
+  }
+
+  applyRoleAssignment(roleAssignment: ParticipantRoleAssignment) {
     const { assignorId, targetId, assignedRoles } = roleAssignment;
 
     if (this.id() !== targetId)
@@ -141,7 +170,22 @@ export class Participant extends StateAggregateBase<ParticipantProps> {
     });
   }
 
-  revokeRoles(roleRevocation: ParticipantRoleRevocation) {
+  revokeRoles(participantId: Id, roles: Role[]) {
+    const canRevokeRole = this.isEligibleForPermission(RevokeRolePermission);
+
+    if (!canRevokeRole) throw new Error();
+
+    const revokedRoles = roles.filter((role) => this.hasRole(role));
+
+    return new ParticipantRoleRevocation({
+      chatId: this.chatId,
+      revokerId: this.id(),
+      targetId: participantId,
+      revokedRoles: revokedRoles,
+    });
+  }
+
+  applyRoleRevocation(roleRevocation: ParticipantRoleRevocation) {
     const { revokerId, targetId, revokedRoles } = roleRevocation;
 
     if (this.id() !== targetId)
@@ -156,6 +200,20 @@ export class Participant extends StateAggregateBase<ParticipantProps> {
       targetId,
       revokedRoles,
     });
+  }
+
+  inviteUser(invitedUserId: Id) {
+    const canInviteUser = this.isEligibleForPermission(InviteUserPermission);
+
+    if (!canInviteUser) throw new Error('This participant cannot invite user');
+
+    const invitation = Invitation.create({
+      chatId: this.chatId,
+      inviterUserId: this.id(),
+      invitedUserId,
+    });
+
+    return invitation;
   }
 }
 

@@ -1,122 +1,130 @@
-import { Container } from 'inversify';
+import { AsyncLocalStorage } from 'async_hooks';
+import { AnyEvent, EventPublisher, IEventSubscriberRegistry } from 'ddd-node';
+import { Container, ContainerModule } from 'inversify';
+import { ConsoleLogger, IWorkflowHost } from 'wfes';
+import { IAppCommand, IAppCommandBus } from './_base/app-command';
+import { IRepoRegistry } from './abstractions/repo-registry';
 import {
-  IAppCommand,
-  IAppCommandBus,
-  IAppCommandHandler,
-} from './_base/app-command';
-import { ProcessStoreToken, RepoRegistryToken } from './app.token';
-import { ActivateParticipant } from './domain-event-subscribers/activate-participant';
-import { ConfirmPendingParticipant } from './domain-event-subscribers/confirm-pending-participant';
-import { CreateParticipant } from './domain-event-subscribers/create-participant';
-import { ProcessEventSubscriber } from './domain-event-subscribers/global/process-event-subscriber';
-import {
-  AppCommandBusModule,
-  AppCommandBusToken,
-  AppCommandHandlerToken,
-} from './modules/app-command-bus';
+  AppCommandBusIdentifier,
+  DomainEventHandlingContextIdentifier,
+  DomainEventSubscriberRegistryIdentifier,
+  RepoRegistryIdentifier,
+  WorkflowContextIdentifier,
+  WorkflowHostIdentifier,
+} from './app.identifiers';
+import { DomainEventHandlingContext } from './domain-event-handling-context';
+import { AddingParticipantStoryEventSubscribers } from './domain-event-subscribers';
+import { WorkflowSubscriber } from './domain-event-subscribers/global/workflow';
+import { AppCommandBusModule } from './modules/app-command-bus';
 import { DomainEventSubscriberRegistryModule } from './modules/domain-event-subscriber-registry';
-import {
-  ProcessRegistryModule,
-  ProcessRegistryToken,
-} from './modules/process-registry';
-import { IRepoRegistry } from './output-ports/repo-registry';
-import { IProcessRegistry, IProcessStore } from './process';
+import { WorkflowModule } from './modules/workflow';
 import { NewPrivateChatHandler } from './use-cases/user/new-private-chat';
 import { NewUserHandler } from './use-cases/user/new-user';
-import { AnyEvent, EventPublisher, IEventSubscriberRegistry } from 'ddd-node';
+import { InitiatePrivateChatWorkflow } from './workflow/initiate-private-chat/initiate-private-chat.workflow';
+import { WorkflowContext } from './workflow/my-step-body';
+import { ChangeNicknameHandler } from './use-cases/participant/change-nickname';
+import { AssignRoleHandler } from './use-cases/participant/assign-role';
+import { RevokeRoleHandler } from './use-cases/participant/revoke-role';
+
+// export interface AppConfiguration {
+//   modules: ContainerModule[],
+// }
 
 export class App extends Container {
-  private static DOMAIN_EVENT_SUBSCRIBER_REGISTRY_TOKEN = Symbol.for(
-    'DOMAIN_EVENT_SUBSCRIBER_REGISTRY_TOKEN',
-  );
-  private static PROCESS_EVENT_SUBSCRIBER_REGISTRY_TOKEN = Symbol.for(
-    'PROCESS_EVENT_SUBSCRIBER_REGISTRY_TOKEN',
-  );
-
-  constructor(repoRegistry: IRepoRegistry, processStore: IProcessStore) {
+  constructor(repoRegistry: IRepoRegistry) {
     super({ skipBaseClassChecks: true });
+
+    this.bindRepoRegistry(repoRegistry);
+
+    this.bindWorkflowContext(new AsyncLocalStorage());
+    this.bindDomainEventHandlingContext(new AsyncLocalStorage());
 
     this.loadAppCommandBusModule();
     this.loadDomainEventSubscriberRegistryModule();
-    this.loadProcessRegistryModule();
+    this.loadWorkflowModule();
+  }
 
-    this.bindRepoRegistry(repoRegistry);
-    this.bindProcessStore(processStore);
+  async start() {
+    await this.workflowHost().start();
   }
 
   loadAppCommandBusModule() {
-    this.load(
-      new AppCommandBusModule({
-        commandHandlers: [NewUserHandler, NewPrivateChatHandler],
-      }),
-    );
+    const module = new AppCommandBusModule({
+      commandBusIdentifier: AppCommandBusIdentifier,
+      commandHandlers: [
+        [NewUserHandler, NewPrivateChatHandler],
+        [ChangeNicknameHandler, AssignRoleHandler, RevokeRoleHandler],
+      ].flat(),
+    });
+
+    this.load(module);
   }
 
   loadDomainEventSubscriberRegistryModule() {
-    this.load(
-      new DomainEventSubscriberRegistryModule({
-        registryToken: App.DOMAIN_EVENT_SUBSCRIBER_REGISTRY_TOKEN,
-        // globalSubscribers: [ProcessEventSubscriber],
-        subscribers: [
-          CreateParticipant,
-          ConfirmPendingParticipant,
-          ActivateParticipant,
-        ],
-      }),
-    );
+    const module = new DomainEventSubscriberRegistryModule({
+      registryIdentifier: DomainEventSubscriberRegistryIdentifier,
+      globalSubscribers: [WorkflowSubscriber],
+      subscribers: [AddingParticipantStoryEventSubscribers].flat(),
+    });
+
+    this.load(module);
   }
 
-  loadProcessEventSubscriberRegistryModule() {
-    this.load(
-      new DomainEventSubscriberRegistryModule({
-        registryToken: App.PROCESS_EVENT_SUBSCRIBER_REGISTRY_TOKEN,
-        subscribers: [],
-      }),
+  loadWorkflowModule() {
+    const module = new WorkflowModule(
+      {
+        workflowHostIdentifier: WorkflowHostIdentifier,
+        workflows: [InitiatePrivateChatWorkflow],
+        logger: new ConsoleLogger(),
+      },
+      this,
     );
-  }
 
-  loadProcessRegistryModule() {
-    this.load(
-      new ProcessRegistryModule({
-        processes: [],
-      }),
-    );
+    this.load(module);
   }
 
   bindRepoRegistry(repoRegistry: IRepoRegistry) {
-    this.bind(RepoRegistryToken).toConstantValue(repoRegistry);
+    this.bind(RepoRegistryIdentifier).toConstantValue(repoRegistry);
   }
 
-  bindProcessStore(processStore: IProcessStore) {
-    processStore.setRegistry(this.processRegistry());
-
-    this.bind(ProcessStoreToken).toConstantValue(processStore);
+  bindDomainEventHandlingContext(
+    context: AsyncLocalStorage<DomainEventHandlingContext>,
+  ) {
+    this.bind(DomainEventHandlingContextIdentifier).toConstantValue(context);
   }
 
-  commandBus() {
-    console.log(this.getAll<IAppCommandHandler>(AppCommandHandlerToken));
-
-    return this.get<IAppCommandBus>(AppCommandBusToken);
+  bindWorkflowContext(context: AsyncLocalStorage<WorkflowContext>) {
+    this.bind(WorkflowContextIdentifier).toConstantValue(context);
   }
 
   repoRegistry() {
-    return this.get<IRepoRegistry>(RepoRegistryToken);
+    return this.get<IRepoRegistry>(RepoRegistryIdentifier);
+  }
+
+  workflowContext() {
+    return this.get<AsyncLocalStorage<WorkflowContext>>(
+      WorkflowContextIdentifier,
+    );
+  }
+
+  domainEventHandlingContext() {
+    return this.get<AsyncLocalStorage<DomainEventHandlingContext>>(
+      DomainEventHandlingContextIdentifier,
+    );
+  }
+
+  commandBus() {
+    return this.get<IAppCommandBus>(AppCommandBusIdentifier);
+  }
+
+  workflowHost() {
+    return this.get<IWorkflowHost>(WorkflowHostIdentifier);
   }
 
   domainEventSubscriberRegistry() {
     return this.get<IEventSubscriberRegistry>(
-      App.DOMAIN_EVENT_SUBSCRIBER_REGISTRY_TOKEN,
+      DomainEventSubscriberRegistryIdentifier,
     );
-  }
-
-  processEventSubscriberRegistry() {
-    return this.get<IEventSubscriberRegistry>(
-      App.PROCESS_EVENT_SUBSCRIBER_REGISTRY_TOKEN,
-    );
-  }
-
-  processRegistry() {
-    return this.get<IProcessRegistry>(ProcessRegistryToken);
   }
 
   handleCommand(command: IAppCommand) {
@@ -127,16 +135,9 @@ export class App extends Container {
     return new EventPublisher(this.domainEventSubscriberRegistry());
   }
 
-  processEventPublisher() {
-    return new EventPublisher(this.processEventSubscriberRegistry());
-  }
-
   handleDomainEvent(event: AnyEvent) {
-    const { correlationId } = event.context() || {};
-
-    if (correlationId && correlationId.startsWith('Process|'))
-      return this.processEventPublisher().publish(event);
-
-    return this.domainEventPublisher().publish(event);
+    return this.domainEventHandlingContext().run({ event }, () =>
+      this.domainEventPublisher().publish(event),
+    );
   }
 }

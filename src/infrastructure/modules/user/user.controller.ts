@@ -12,9 +12,6 @@ export class UserController {
   async newUser() {
     const command = new NewUserCommand({});
 
-    console.log(this.appCore.commandBus());
-    console.log(this.appCore.repoRegistry());
-
     await this.appCore.handleCommand(command);
   }
 
